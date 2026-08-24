@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 技能开发过程中的评测产物
+*-workspace/
+evals/results/
+feedback.json
+
+# 数据文件(报表通常含店铺敏感数据,不要提交)
+*.csv
+*.xlsx
+*.xls
+!skills/**/assets/*.csv
+!skills/**/assets/*.xlsx
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
