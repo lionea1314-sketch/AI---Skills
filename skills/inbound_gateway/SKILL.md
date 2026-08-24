@@ -48,7 +48,7 @@ domain: crm
 | `media_keys` | array | 落库成功的附件键，交给下游 `media_process` |
 | `turn_count` | int | 该会话当前轮数（可核验） |
 | `text_truncated` | bool | 正文是否被截断 |
-| `skipped` | array | 被跳过的附属数据及原因 |
+| `skipped` | array | 被跳过的附属数据及原因；会话时间戳在未来时也记这里 |
 | `notes` | array | 错误与告警原样透出，不吞 |
 
 失败返回 `{"error": "..."}`，不抛异常。
@@ -68,6 +68,10 @@ domain: crm
 
 **读**：`crm_identities`、`crm_conversations`
 **写**：`crm_conversations`（新建或更新 turn_count/last 活跃）、`crm_media`（附属，失败不阻断主流程）
+
+**未来时间戳防护**：找到的会话若 `updated_at`/`started_at` 超前当前时间 5 分钟以上（超出正常时钟偏移），判为脏数据、不复用、另开新会话，并在 `notes` 与 `skipped` 里点名该行。
+
+不加这道防护，`now - last` 会算成负数，永远不超 `new_conv_gap_min`，新消息会被并进一段本不该复用的会话——**客户上下文直接串台**。实测环境里确实存在未来 8 天的会话数据（灌错的模拟数据或时区写反），这不是假想风险。
 
 去重键的落点：手册未给入站消息流水表（消息正文在平台侧）。本技能把最近处理过的 `platform_msg_id` 连同时间戳维护在 `crm_conversations.custom_fields.recent_msg_ids` 滑动窗口里。去重窗口 300 秒远小于新会话间隔 30 分钟，重投必然落在同一会话内，因此该窗口足够，且不额外建表。若后续入站量大到需要独立索引，再升级为独立去重表。
 

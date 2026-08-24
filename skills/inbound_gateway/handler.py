@@ -41,6 +41,10 @@ _OPTIONAL_TABLES = ("crm_media", "crm_identities")
 # 会话 custom_fields 里维护的去重滑动窗口最多保留多少条
 _RECENT_MSG_CAP = 200
 
+# 允许的时钟偏移。各节点时钟有几分钟偏差是正常的，超出就当脏数据——
+# 会话时间在未来会让"距上次多久"算成负数，永远不超新会话间隔。
+_CLOCK_SKEW_TOLERANCE = timedelta(minutes=5)
+
 
 # --------------------------------------------------------------------------- 会话/表定位
 def _get_session(rc: dict):
@@ -374,7 +378,19 @@ async def execute(input_data: dict, runtime_context: dict) -> dict:
         conv = await _find_open_conv(session, schema, channel, external_id, cust_id)
         if conv:
             last = conv["updated_at"] or conv["started_at"] or now
-            if (now - last) > timedelta(minutes=gap_min):
+            ahead = last - now
+            if ahead > _CLOCK_SKEW_TOLERANCE:
+                # 会话时间在未来 = 脏数据（灌错的模拟数据、时区写反、时钟跑飞）。
+                # 不加这道防护的话 now-last 是负数，永远不超 gap_min，
+                # 新消息会被并进一段本不该复用的会话，客户上下文直接串台。
+                logger.warning("会话 %s 时间在未来 %s，判为脏数据不复用",
+                               conv["conv_id"], ahead)
+                notes.append(
+                    f"会话 {conv['conv_id']} 的时间戳在未来（{last.isoformat()}，"
+                    f"超前 {ahead}），已判为脏数据另开新会话。请检查该行数据。")
+                skipped.append({"conv_id": conv["conv_id"], "reason": "时间戳在未来"})
+                conv = None
+            elif (now - last) > timedelta(minutes=gap_min):
                 conv = None          # 超过间隔，这段算结束了，另开新段
 
         # 4) 幂等：命中去重窗口 → 零写入返回
