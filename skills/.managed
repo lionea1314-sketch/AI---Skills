@@ -1,0 +1,8 @@
+# 《AI 客户经营系统 · 部署手册 v4》纳管的技能，一行一个。
+# 不在此清单中的目录标为 legacy，跳过规范校验（见 skills/README.md）。
+inbound_gateway
+identity_resolve
+read_view
+intent_classify
+route_decide
+handoff_pack
