@@ -43,14 +43,38 @@
 
 > 帮我查 `crm_conversations` 表里最近 5 条会话，按 started_at 倒序，把 conv_id、cust_id、channel、external_id、state、turn_count、started_at 都列出来。
 
-**判读**
+**判读 —— 先看 started_at 的日期，再看别的**
+
+最新一条的 `started_at` 是不是你这次测试的时间？**不是的话，后面所有列都不用看了**：
+这次测试压根没写进这张表，断点比识别更靠前，直接跳到「情况 Z」。
 
 | 看到什么 | 说明什么 |
 |---|---|
-| 最新那条 cust_id 有值 | 识别链路通了，问题不在这儿 |
-| **最新那条 cust_id 为空，但第 0 层查到了 cust_id** | **回填没落到会话表**——这是核心故障，往第 2 层定位是没调用还是调用了没写进去 |
+| **最新一条的日期不是本次测试时间** | **情况 Z：`inbound_gateway` 没写库**。查的表里全是历史/预置数据，本次测试毫无痕迹。断在链路第一步，不是识别问题 |
+| 最新那条就是本次测试，cust_id 有值 | 识别链路通了，问题不在这儿 |
+| 最新那条就是本次测试，cust_id 为空，且第 0 层查到了 cust_id | **回填没落到会话表**——往第 2 层定位是没调用还是调用了没写进去 |
 | channel 的值和第 0 层 identities 里的 channel 对不上 | 渠道命名不一致，同第 0 层结论 |
 | external_id 是空的 | `inbound_gateway` 没收到 external_id，链路从源头就断了，查平台传参 |
+
+**怎么认出「不是技能写的行」**：`inbound_gateway` 新建会话时 `turn_count` 必写 `0`、
+`external_id` 必写渠道用户 ID。**这两列是 `null` 的行，一定是人工或脚本灌进去的**，
+不是技能产生的。整张表都是这种行 = 技能从来没成功写过库。
+
+### 情况 Z · 本次测试没在表里留痕
+
+按顺序发这三条，定位是"没调用"还是"查错地方"：
+
+> 帮我查 `crm_conversations` 表一共有多少条记录，最早的 started_at 和最晚的 started_at 分别是什么时候。
+
+> 帮我查 `crm_conversations` 表里 started_at 在最近 7 天之内的所有记录，把 conv_id、cust_id、channel、external_id、turn_count、started_at 列出来。
+
+> 帮我查 `crm_conversations` 表里 turn_count 不为空的记录，最多 10 条，把 conv_id、channel、external_id、turn_count、started_at 列出来。
+
+| 三条的结果 | 结论 |
+|---|---|
+| 总数就是那几条预置数据、近 7 天空、turn_count 全空 | **`inbound_gateway` 从来没成功写过库**。查它有没有被平台调用、org_id 传的对不对、写库有没有静默失败 |
+| 近 7 天有记录，但第一条查询没查到 | 你查的排序或范围有问题，重跑第 1 层 |
+| 总数远大于预置数据，且有 turn_count 非空的行 | 技能是在写库的，只是本次测试的会话没落进来——查测试环境和这个库是不是同一个 org_id / schema |
 
 ---
 
