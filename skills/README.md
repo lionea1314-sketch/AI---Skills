@@ -16,7 +16,7 @@ skills/<技能标识>/
 
 | 手册 3.1 | 本仓库 | 原因 |
 |---|---|---|
-| 四个文件（含 `skill.toml`、`rules.default.json`） | **只有 SKILL.md + handler.py** | 仓库约定。`rules.default.json` 的内容完整并入 SKILL.md 的「规则」章节——手册本就要求那里列出全部 rule_key，信息不丢失；装载器改为从 SKILL.md 的规则表读取并 upsert 进 `crm_rules`（已存在的不覆盖，保留企业改过的值）。 |
+| 四个文件（含 `skill.toml`、`rules.default.json`） | **只有 SKILL.md + handler.py** | 仓库约定。`rules.default.json` 的内容完整并入 SKILL.md 的「规则」章节——手册本就要求那里列出全部 rule_key，信息不丢失。**平台装载器若按手册校验四件套、缺文件就注册不上**，用 `python3 scripts/gen_rules_default.py` 按需生成（默认输出到 `build/rules/`，加 `--in-place` 写进技能目录）。 |
 | 建表与读写走 nocodb 封装 | **SQLAlchemy AsyncSession + Postgres org schema** | 按《平台技能操作数据库 · 施工规范》实现，13 条铁律逐条落实。 |
 
 `scripts/validate_skills.py` 会强制这两条约定：出现 `rules.default.json`、`skill.toml` 或任何子目录都会报错。

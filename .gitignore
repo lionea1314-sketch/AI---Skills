@@ -21,3 +21,6 @@ feedback.json
 Thumbs.db
 .idea/
 .vscode/
+
+# 生成产物（rules.default.json 按需生成，见 scripts/gen_rules_default.py）
+build/
