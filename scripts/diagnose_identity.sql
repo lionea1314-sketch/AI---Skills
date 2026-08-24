@@ -1,8 +1,18 @@
--- 身份识别链路断点定位
--- 用法：把 :schema / :channel / :external_id / :conv_id 换成实际值后逐段执行。
--- 每段的「判读」列告诉你这一层通没通，通了就往下一段。
+-- 身份识别链路断点定位（手工版）
 --
--- 示例值：schema=org_data_xxx  channel='官网'  external_id='zhangwei'
+-- 这不是技能，智能体不调用它。它是给人在数据库客户端里跑的排查 SQL。
+--
+-- 【多数情况下你应该用一键版，而不是这个文件】
+--     python3 scripts/diagnose_identity.py --org-id <你的org_id> \
+--         --channel 官网 --external-id zhangwei
+--   一键版自己连库、自己跑完五层、直接告诉你断在哪、怎么修。
+--
+-- 这个 .sql 留给两种情况：
+--   ① 你只能通过 DBA / 运维代跑，交给他们一段能直接执行的 SQL 更省事
+--   ② 一键版的结论你不放心，想自己看原始数据
+--
+-- 用法：把 org_data_xxx 换成你的 schema，把 'zhangwei' 换成实际 external_id，
+--       逐段执行。每段下面的「判读」告诉你这一层通没通，通了就往下一段。
 
 -- ────────────────────────────────────────────────────────────
 -- 第 0 层：identities 里到底有没有这条映射，key 长什么样
