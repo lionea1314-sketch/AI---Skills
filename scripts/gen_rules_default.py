@@ -9,9 +9,10 @@ SKILL.md + handler.py，规则内容并入 SKILL.md 的「规则」章节——�
 平台装载器若按手册校验四件套，缺这个文件就注册不上。这个脚本把它按需生成
 出来，不用手工维护两份规则、也不用改仓库约定。
 
-默认写到 build/rules/<技能>/rules.default.json，不碰技能目录。
-确需放进技能目录（平台只认同目录）时加 --in-place，
-但那会让 validate_skills.py 判为违规——这是刻意的，提醒你仓库约定被打破了。
+本仓库约定 rules.default.json 为可选文件：需要它时用 --in-place 直接生成到
+技能目录，平时也可以只生成到 build/rules/ 预览。生成后 validate_skills.py
+会逐字段比对它和 SKILL.md 的规则表，两边漂移就报错——避免出现
+"文档写默认 300、实际注入 500"这种查不出来的事故。
 
 用法：
     python3 scripts/gen_rules_default.py                    # 全部技能 → build/rules/
@@ -178,8 +179,8 @@ def main() -> int:
 
     print(f"\n{len(dirs)} 个技能，{total_rules} 条规则，{total_warn} 个告警")
     if args.in_place and not args.check:
-        print("已写进技能目录：validate_skills.py 现在会判为违规——"
-              "这是刻意的，提醒你仓库「只含两文件」的约定被打破了")
+        print("已写进技能目录。改了 SKILL.md 的规则表后要重跑一次——"
+              "validate_skills.py 会逐字段比对两边，漂移了会报错")
     return 1 if failed else 0
 
 

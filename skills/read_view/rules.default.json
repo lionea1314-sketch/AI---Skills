@@ -1,0 +1,74 @@
+[
+  {
+    "rule_key": "view.section_char_cap",
+    "owner_skill": "read_view",
+    "rule_name": "每槽字数上限",
+    "rule_type": "阈值",
+    "default_value": "300",
+    "range": "100~1000",
+    "risk": "低",
+    "meaning": "单槽超长截断（风险条豁免）",
+    "effect_up": "信息全，AI 上下文成本上升",
+    "effect_down": "关键细节被砍"
+  },
+  {
+    "rule_key": "view.orders_recent_n",
+    "owner_skill": "read_view",
+    "rule_name": "带几单",
+    "rule_type": "阈值",
+    "default_value": "3",
+    "range": "1~10",
+    "risk": "低",
+    "meaning": "最近订单条数",
+    "effect_up": "历史全，噪音多",
+    "effect_down": "看不出复购规律"
+  },
+  {
+    "rule_key": "view.memories_top_n",
+    "owner_skill": "read_view",
+    "rule_name": "带几条记忆",
+    "rule_type": "阈值",
+    "default_value": "8",
+    "range": "3~20",
+    "risk": "低",
+    "meaning": "偏好禁忌条数",
+    "effect_up": "上下文变长",
+    "effect_down": "重要禁忌可能落选"
+  },
+  {
+    "rule_key": "view.memories_rank",
+    "owner_skill": "read_view",
+    "rule_name": "记忆排序",
+    "rule_type": "文字准则",
+    "default_value": "hit_count×confidence 降序，钉选置顶",
+    "range": "—",
+    "risk": "低",
+    "meaning": "记忆排序口径",
+    "effect_up": "—",
+    "effect_down": "改错会让钉选记忆掉出前 N"
+  },
+  {
+    "rule_key": "view.cache_ttl_s",
+    "owner_skill": "read_view",
+    "rule_name": "缓存秒数",
+    "rule_type": "阈值",
+    "default_value": "60",
+    "range": "0~600",
+    "risk": "低",
+    "meaning": "同客户重复取的缓存时间",
+    "effect_up": "更快更省，但改了资料不立刻生效",
+    "effect_down": "每次都查库，延迟上升"
+  },
+  {
+    "rule_key": "view.expose_sensitive",
+    "owner_skill": "read_view",
+    "rule_name": "敏感字段进 AI 上下文",
+    "rule_type": "开关",
+    "default_value": "关",
+    "range": "—",
+    "risk": "极高",
+    "meaning": "手机号等敏感字段是否给模型看",
+    "effect_up": "开启后敏感信息会进入模型上下文与日志，泄露不可逆",
+    "effect_down": "模型只拿到掩码值"
+  }
+]

@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """校验 skills/ 下每个技能是否符合《AI 客户经营系统 · 部署手册 v4》第 3.1 节规范。
 
+本仓库的文件约定：SKILL.md 必需、handler.py 必需、rules.default.json 可选、
+skill.toml 不使用。
+
 检查项：
-  1. 目录只含 SKILL.md 与 handler.py（本仓库约定：技能文件只有这两个）
+  1. 目录只含 SKILL.md、handler.py、rules.default.json；skill.toml 禁用
+  1b. rules.default.json 若存在，须与 SKILL.md 的规则表逐字段一致
   2. SKILL.md frontmatter 可被严格 YAML 解析，字段集与顺序对齐元数据模板
   3. name 与目录名一致；category / trigger-type / cost-tier 取值合法
   4. positive-examples / negative-examples 非空（决定能否被正确召回）
@@ -17,6 +21,7 @@
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -32,7 +37,10 @@ TRIGGERS = {"explicit", "auto", "cron", "sidecar"}
 COST_TIERS = {"zero", "low", "medium", "high"}
 SOURCES = {"builtin", "external", "learned", "mcp"}
 
-ALLOWED_FILES = {"SKILL.md", "handler.py"}
+REQUIRED_FILES = {"SKILL.md", "handler.py"}
+OPTIONAL_FILES = {"rules.default.json"}
+FORBIDDEN_FILES = {"skill.toml"}
+ALLOWED_FILES = REQUIRED_FILES | OPTIONAL_FILES
 NAME_RE = re.compile(r"^[a-z0-9]+(_[a-z0-9]+)*$")
 FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 UNSAFE_CAST_RE = re.compile(r":\w+::")
@@ -57,17 +65,96 @@ def parse_frontmatter(text: str):
     return data, ""
 
 
+def _load_generator():
+    """按需加载生成器，用它重算一份规则来比对。scripts 之间可以互相 import。"""
+    import importlib.util
+    gen = Path(__file__).resolve().parent / "gen_rules_default.py"
+    if not gen.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("_gen_rules", gen)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _check_rules_json(skill_dir: Path, path: Path) -> list:
+    """
+    rules.default.json 存在时校验它。
+
+    最要紧的是和 SKILL.md 的规则表一致：两份规则一旦漂移，
+    就会出现"文档写默认 300、实际注入 500"这种查不出来的事故。
+    所以这里不只看格式，还用生成器重算一遍逐字段比对。
+    """
+    name = skill_dir.name
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:                           # noqa: BLE001
+        return [f"rules.default.json 解析失败：{e}"]
+    if not isinstance(data, list):
+        return ["rules.default.json 顶层应是数组"]
+
+    errors = []
+    for i, item in enumerate(data):
+        if not isinstance(item, dict):
+            errors.append(f"rules.default.json[{i}] 不是对象")
+            continue
+        if item.get("owner_skill") != name:
+            errors.append(f"rules.default.json[{i}] owner_skill "
+                          f"{item.get('owner_skill')!r} 与目录名不符")
+        for f in ("rule_key", "rule_name", "default_value", "risk", "meaning"):
+            if not item.get(f):
+                errors.append(f"rules.default.json[{i}]"
+                              f"（{item.get('rule_key', '?')}）缺 {f}")
+
+    gen = _load_generator()
+    if gen is None:
+        return errors
+    try:
+        expected, _ = gen.build(skill_dir)
+    except Exception as e:                           # noqa: BLE001
+        return errors + [f"无法从 SKILL.md 重算规则做比对：{e}"]
+
+    got_keys = {r.get("rule_key") for r in data if isinstance(r, dict)}
+    exp_keys = {r["rule_key"] for r in expected}
+    if got_keys != exp_keys:
+        only_json = sorted(got_keys - exp_keys)
+        only_md = sorted(exp_keys - got_keys)
+        if only_json:
+            errors.append(f"rules.default.json 有而 SKILL.md 没有的规则：{only_json}")
+        if only_md:
+            errors.append(f"SKILL.md 有而 rules.default.json 没有的规则：{only_md}")
+    else:
+        by_key = {r["rule_key"]: r for r in expected}
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            exp = by_key.get(item.get("rule_key"))
+            if not exp:
+                continue
+            drifted = [f for f in ("default_value", "risk", "rule_type", "range")
+                       if str(item.get(f, "")) != str(exp.get(f, ""))]
+            if drifted:
+                errors.append(f"{item['rule_key']}：{drifted} 与 SKILL.md 规则表不一致，"
+                              f"跑 scripts/gen_rules_default.py --in-place 重新生成")
+    return errors                                # 前缀由 check_skill 统一加
+
+
 def check_skill(skill_dir: Path):
     errors, warnings = [], []
     name = skill_dir.name
 
-    extra = {p.name for p in skill_dir.iterdir() if p.is_file()} - ALLOWED_FILES
+    present = {p.name for p in skill_dir.iterdir() if p.is_file()}
+    banned = present & FORBIDDEN_FILES
+    if banned:
+        errors.append(f"目录含禁用文件 {sorted(banned)}（本仓库不使用 skill.toml）")
+    extra = present - ALLOWED_FILES
     if extra:
-        errors.append(f"目录含约定外文件 {sorted(extra)}（技能只应有 SKILL.md 与 handler.py）")
+        errors.append(f"目录含约定外文件 {sorted(extra)}"
+                      f"（只允许 SKILL.md、handler.py、rules.default.json）")
     subdirs = [p.name for p in skill_dir.iterdir()
                if p.is_dir() and p.name != "__pycache__"]
     if subdirs:
-        errors.append(f"目录含子目录 {sorted(subdirs)}（技能只应有 SKILL.md 与 handler.py）")
+        errors.append(f"目录含子目录 {sorted(subdirs)}（技能目录不放子目录）")
 
     skill_md = skill_dir / "SKILL.md"
     handler = skill_dir / "handler.py"
@@ -112,6 +199,10 @@ def check_skill(skill_dir: Path):
         warnings.append("SKILL.md 缺少「施工规范符合性自查」章节")
     if "## 规则" not in md_text:
         warnings.append("SKILL.md 缺少「规则」章节（应列出全部 rule_key）")
+
+    rules_json = skill_dir / "rules.default.json"
+    if rules_json.is_file():
+        errors += _check_rules_json(skill_dir, rules_json)
 
     if handler.is_file():
         py = handler.read_text(encoding="utf-8")

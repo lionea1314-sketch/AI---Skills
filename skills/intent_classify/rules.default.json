@@ -1,0 +1,50 @@
+[
+  {
+    "rule_key": "intent.class_list",
+    "owner_skill": "intent_classify",
+    "rule_name": "意图清单",
+    "rule_type": "清单",
+    "default_value": "咨询/售后/投诉/购买/会员/预约/其他",
+    "range": "可增删",
+    "risk": "中",
+    "meaning": "主意图只能从这个清单里选",
+    "effect_up": "分得细，路由规则要跟着补，漏配就掉进\"其他\"",
+    "effect_down": "分得粗，不同问题走同一条路由"
+  },
+  {
+    "rule_key": "intent.context_turns",
+    "owner_skill": "intent_classify",
+    "rule_name": "带几轮上下文",
+    "rule_type": "阈值",
+    "default_value": "3",
+    "range": "0~10",
+    "risk": "低",
+    "meaning": "判断时带多少轮历史",
+    "effect_up": "判断更准，token 成本上升",
+    "effect_down": "指代不清的短句判不准（\"那个呢\"）"
+  },
+  {
+    "rule_key": "intent.min_confidence",
+    "owner_skill": "intent_classify",
+    "rule_name": "最低把握度",
+    "rule_type": "阈值",
+    "default_value": "0.5",
+    "range": "0.3~0.9",
+    "risk": "中",
+    "meaning": "低于此值强制归为\"其他\"",
+    "effect_up": "\"其他\"变多，更多走人工兜底",
+    "effect_down": "低把握结果被当真，路由错得更多"
+  },
+  {
+    "rule_key": "intent.emotion_negative_sensitivity",
+    "owner_skill": "intent_classify",
+    "rule_name": "负向情绪灵敏度",
+    "rule_type": "单选",
+    "default_value": "中",
+    "range": "低/中/高",
+    "risk": "中",
+    "meaning": "判负向的宽严",
+    "effect_up": "更容易判负向，转人工变多、成本上升",
+    "effect_down": "真生气的客户被判中性，投诉升级"
+  }
+]

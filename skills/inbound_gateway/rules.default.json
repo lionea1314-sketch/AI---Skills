@@ -1,0 +1,50 @@
+[
+  {
+    "rule_key": "gateway.channels_enabled",
+    "owner_skill": "inbound_gateway",
+    "rule_name": "启用渠道",
+    "rule_type": "清单",
+    "default_value": "全开",
+    "range": "渠道枚举子集",
+    "risk": "低",
+    "meaning": "只收清单内渠道的消息",
+    "effect_up": "收得多，噪音和成本上升",
+    "effect_down": "关掉的渠道消息直接丢，客户以为没人理"
+  },
+  {
+    "rule_key": "gateway.dedup_window_s",
+    "owner_skill": "inbound_gateway",
+    "rule_name": "去重窗口(秒)",
+    "rule_type": "阈值",
+    "default_value": "300",
+    "range": "60~1800",
+    "risk": "低",
+    "meaning": "多少秒内同 platform_msg_id 算重复",
+    "effect_up": "重复投递拦得更干净；跨窗口的正常重发会被误杀",
+    "effect_down": "平台重试时会重复计轮，turn_count 虚高"
+  },
+  {
+    "rule_key": "gateway.new_conv_gap_min",
+    "owner_skill": "inbound_gateway",
+    "rule_name": "新会话间隔(分钟)",
+    "rule_type": "阈值",
+    "default_value": "30",
+    "range": "5~240",
+    "risk": "低",
+    "meaning": "距上条消息多久算新会话",
+    "effect_up": "会话变长，一次服务过程被拉成流水账",
+    "effect_down": "会话被切碎，画像分析的单位失真"
+  },
+  {
+    "rule_key": "gateway.max_msg_len",
+    "owner_skill": "inbound_gateway",
+    "rule_name": "单条正文上限",
+    "rule_type": "阈值",
+    "default_value": "4000",
+    "range": "500~20000",
+    "risk": "低",
+    "meaning": "超长正文截断长度",
+    "effect_up": "长文完整保留，下游 token 成本上升",
+    "effect_down": "长文被砍，语义丢失"
+  }
+]

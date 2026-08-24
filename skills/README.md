@@ -8,18 +8,31 @@
 
 ```
 skills/<技能标识>/
-├── SKILL.md      必需｜元数据 + 说明（决定"什么时候调我"）
-└── handler.py    必需｜async def execute(input_data, runtime_context) -> dict
+├── SKILL.md            必需｜元数据 + 说明（决定"什么时候调我"）
+├── handler.py          必需｜async def execute(input_data, runtime_context) -> dict
+└── rules.default.json  可选｜默认规则，装载时 upsert 进 crm_rules
 ```
 
-**与手册 3.1 的两处差异，均为本仓库的明确约定**：
+`skill.toml` **本仓库不使用**，出现即报错。
+
+**rules.default.json 不手工维护**——规则的唯一事实来源是 SKILL.md 的「规则」表，
+这个文件由脚本生成：
+
+```bash
+python3 scripts/gen_rules_default.py --in-place   # 生成到各技能目录
+python3 scripts/gen_rules_default.py              # 只生成到 build/rules/ 预览
+```
+
+改了 SKILL.md 的规则表就重跑一次。`validate_skills.py` 会**逐字段比对两边**，
+漂移了直接报错——避免出现"文档写默认 300、实际注入 500"这种查不出来的事故。
+
+**与手册 3.1 的差异**：
 
 | 手册 3.1 | 本仓库 | 原因 |
 |---|---|---|
-| 四个文件（含 `skill.toml`、`rules.default.json`） | **只有 SKILL.md + handler.py** | 仓库约定。`rules.default.json` 的内容完整并入 SKILL.md 的「规则」章节——手册本就要求那里列出全部 rule_key，信息不丢失。**平台装载器若按手册校验四件套、缺文件就注册不上**，用 `python3 scripts/gen_rules_default.py` 按需生成（默认输出到 `build/rules/`，加 `--in-place` 写进技能目录）。 |
-| 建表与读写走 nocodb 封装 | **SQLAlchemy AsyncSession + Postgres org schema** | 按《平台技能操作数据库 · 施工规范》实现，13 条铁律逐条落实。 |
-
-`scripts/validate_skills.py` 会强制这两条约定：出现 `rules.default.json`、`skill.toml` 或任何子目录都会报错。
+| `skill.toml` 可选 | **不使用** | 仓库约定 |
+| `rules.default.json` 必需 | **可选，脚本生成** | 规则内容本就在 SKILL.md 的「规则」章节（手册要求那里列出全部 rule_key），生成而非手写，杜绝两份漂移 |
+| 建表与读写走 nocodb 封装 | **SQLAlchemy AsyncSession + Postgres org schema** | 按《平台技能操作数据库 · 施工规范》实现，13 条铁律逐条落实 |
 
 ## 技能总表（手册 3.3）
 
@@ -155,5 +168,6 @@ python3 scripts/validate_skills.py --strict  # 警告也失败
 2. 定 input / output schema，缺必填参数时返回 `{"error": ...}` 而不是猜
 3. 写 `handler.py`：先把纯规则能算的写完，再决定哪一步需要模型
 4. 把该技能的默认规则写进 SKILL.md「规则」章节，每条四要素齐（含义/调高/调低/风险）
-5. 补「施工规范符合性自查」表，跑 `python3 scripts/validate_skills.py`
-6. 在上面的技能总表里把状态改成「已建」
+5. 跑 `python3 scripts/gen_rules_default.py --in-place` 生成 rules.default.json
+6. 补「施工规范符合性自查」表，跑 `python3 scripts/validate_skills.py`
+7. 在上面的技能总表里把状态改成「已建」

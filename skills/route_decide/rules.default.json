@@ -1,0 +1,74 @@
+[
+  {
+    "rule_key": "handoff.confidence",
+    "owner_skill": "route_decide",
+    "rule_name": "自动处理最低把握度",
+    "rule_type": "阈值",
+    "default_value": "0.80",
+    "range": "0.5~0.95",
+    "risk": "中",
+    "meaning": "意图把握度低于此值直接转人工",
+    "effect_up": "转人工变多，人力成本上升，但错答变少",
+    "effect_down": "AI 拿不准也硬答，客户被绕圈"
+  },
+  {
+    "rule_key": "handoff.max_turns",
+    "owner_skill": "route_decide",
+    "rule_name": "连续未解决轮数",
+    "rule_type": "阈值",
+    "default_value": "3",
+    "range": "1~10",
+    "risk": "中",
+    "meaning": "连续几轮没解决就转人工",
+    "effect_up": "客户被机器人绕更久才见到人",
+    "effect_down": "稍有波折就转人工，人力吃紧"
+  },
+  {
+    "rule_key": "handoff.on_negative",
+    "owner_skill": "route_decide",
+    "rule_name": "情绪负向转人工",
+    "rule_type": "开关",
+    "default_value": "开",
+    "range": "—",
+    "risk": "中",
+    "meaning": "判为负向立刻转人工",
+    "effect_up": "生气的客户第一时间见到人",
+    "effect_down": "关掉后投诉容易升级，AI 继续应对愤怒客户"
+  },
+  {
+    "rule_key": "handoff.on_customer_ask",
+    "owner_skill": "route_decide",
+    "rule_name": "客户要人工就转",
+    "rule_type": "开关",
+    "default_value": "开",
+    "range": "—",
+    "risk": "中",
+    "meaning": "客户明说要人工立刻转",
+    "effect_up": "尊重客户意愿，体验好",
+    "effect_down": "关掉后客户反复要人工却转不过去，是最典型的差评来源"
+  },
+  {
+    "rule_key": "handoff.on_price_ask",
+    "owner_skill": "route_decide",
+    "rule_name": "涉价格折扣赔付转人工",
+    "rule_type": "开关",
+    "default_value": "开",
+    "range": "—",
+    "risk": "高",
+    "meaning": "议价、折扣、赔付话题转人工",
+    "effect_up": "避免 AI 承诺价格造成实际损失",
+    "effect_down": "关掉意味着 AI 可能对价格作出承诺，损失不可逆"
+  },
+  {
+    "rule_key": "route.order",
+    "owner_skill": "route_decide",
+    "rule_name": "判定顺序",
+    "rule_type": "清单",
+    "default_value": "见下",
+    "range": "可重排",
+    "risk": "中",
+    "meaning": "七步判定的先后顺序",
+    "effect_up": "顺序决定谁先截胡，改了整体分流结构会变",
+    "effect_down": "—"
+  }
+]

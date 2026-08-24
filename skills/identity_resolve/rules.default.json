@@ -1,0 +1,110 @@
+[
+  {
+    "rule_key": "identity.merge_by_phone",
+    "owner_skill": "identity_resolve",
+    "rule_name": "手机号自动合并",
+    "rule_type": "开关",
+    "default_value": "开",
+    "range": "",
+    "risk": "中",
+    "meaning": "手机号一致直接合并",
+    "effect_up": "跨渠道认人准，历史攒得住",
+    "effect_down": "同一人多份档案，画像被稀释"
+  },
+  {
+    "rule_key": "identity.merge_by_unionid",
+    "owner_skill": "identity_resolve",
+    "rule_name": "unionid 自动合并",
+    "rule_type": "开关",
+    "default_value": "开",
+    "range": "",
+    "risk": "中",
+    "meaning": "平台 unionid 打通",
+    "effect_up": "微信生态内认人准",
+    "effect_down": "公众号/小程序各算一个人"
+  },
+  {
+    "rule_key": "identity.merge_by_self_claim",
+    "owner_skill": "identity_resolve",
+    "rule_name": "自述自动合并",
+    "rule_type": "开关",
+    "default_value": "开",
+    "range": "",
+    "risk": "中",
+    "meaning": "客户自己说\"我微信是X\"",
+    "effect_up": "省人工确认",
+    "effect_down": "自述要人工核，响应变慢"
+  },
+  {
+    "rule_key": "identity.merge_by_email",
+    "owner_skill": "identity_resolve",
+    "rule_name": "邮箱自动合并",
+    "rule_type": "开关",
+    "default_value": "关",
+    "range": "",
+    "risk": "高",
+    "meaning": "邮箱一致直接合并",
+    "effect_up": "认人多一条路；共用邮箱会把两个人并成一个",
+    "effect_down": "邮箱只做候选提示"
+  },
+  {
+    "rule_key": "identity.merge_by_addr_name",
+    "owner_skill": "identity_resolve",
+    "rule_name": "地址+姓名自动合并",
+    "rule_type": "开关",
+    "default_value": "关",
+    "range": "",
+    "risk": "高",
+    "meaning": "地址与姓名同时一致",
+    "effect_up": "电商场景认人准；同名同住址的家人会被并",
+    "effect_down": "只做候选提示"
+  },
+  {
+    "rule_key": "identity.weak_to_pending",
+    "owner_skill": "identity_resolve",
+    "rule_name": "弱证据只标待确认",
+    "rule_type": "开关",
+    "default_value": "开",
+    "range": "",
+    "risk": "高",
+    "meaning": "昵称像/头像同/同地区行业只挂待确认",
+    "effect_up": "安全，错并率低",
+    "effect_down": "关掉等于允许弱证据自动合并，强烈不建议"
+  },
+  {
+    "rule_key": "identity.merge_reversible",
+    "owner_skill": "identity_resolve",
+    "rule_name": "合并保留快照可撤销",
+    "rule_type": "开关",
+    "default_value": "开",
+    "range": "",
+    "risk": "高",
+    "meaning": "合并前写双方主档快照",
+    "effect_up": "误并可一键回退",
+    "effect_down": "关掉后合并不可逆，出错只能人工重建"
+  },
+  {
+    "rule_key": "identity.pending_remind_days",
+    "owner_skill": "identity_resolve",
+    "rule_name": "待确认提醒天数",
+    "rule_type": "阈值",
+    "default_value": "3",
+    "range": "",
+    "risk": "低",
+    "meaning": "待确认多久没处理就提醒",
+    "effect_up": "队列积压久，客户体验受影响",
+    "effect_down": "提醒频繁，打扰坐席"
+  },
+  {
+    "rule_key": "identity.new_as_lead",
+    "owner_skill": "identity_resolve",
+    "rule_name": "新身份先建线索",
+    "rule_type": "开关",
+    "default_value": "关",
+    "range": "",
+    "risk": "中",
+    "meaning": "新身份建 leads 而不是 customers",
+    "effect_up": "客户主档干净，问一句就走的不进档",
+    "effect_down": "主档里混入大量一次性访客"
+  }
+]

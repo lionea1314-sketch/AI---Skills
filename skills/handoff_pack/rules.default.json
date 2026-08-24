@@ -1,0 +1,62 @@
+[
+  {
+    "rule_key": "handoff.assign_mode",
+    "owner_skill": "handoff_pack",
+    "rule_name": "分派方式",
+    "rule_type": "单选",
+    "default_value": "按问题类型",
+    "range": "按问题类型/按归属员工/轮询/负载最低",
+    "risk": "中",
+    "meaning": "按什么规则选接手人",
+    "effect_up": "选「负载最低」或「轮询」：工作量摊得匀，但客户每次遇到不同的人，得重新讲一遍背景",
+    "effect_down": "选「按归属员工」：对接连续、客户省心，但归属员工容易过载，他休假时没人接"
+  },
+  {
+    "rule_key": "handoff.type_map",
+    "owner_skill": "handoff_pack",
+    "rule_name": "类型→组映射",
+    "rule_type": "清单",
+    "default_value": "售前咨询→售前组；售后退换投诉→售后组；会员积分→会员组；预约→前台",
+    "range": "意图枚举→组名",
+    "risk": "中",
+    "meaning": "哪类意图分到哪个组",
+    "effect_up": "映射配得越全，越能直接落到懂行的人手上",
+    "effect_down": "漏配的意图会落到默认组，在那儿排队积压，没人认领"
+  },
+  {
+    "rule_key": "handoff.prefer_owner",
+    "owner_skill": "handoff_pack",
+    "rule_name": "优先给归属员工",
+    "rule_type": "开关",
+    "default_value": "关",
+    "range": "—",
+    "risk": "低",
+    "meaning": "有归属员工时是否优先给他",
+    "effect_up": "开：大客户对接连续，关系维护得住；但归属员工可能过载",
+    "effect_down": "关：按分派规则走，负载均衡；但客户每次面对不同的人"
+  },
+  {
+    "rule_key": "handoff.packet_items",
+    "owner_skill": "handoff_pack",
+    "rule_name": "交接包内容",
+    "rule_type": "清单",
+    "default_value": "六件套全开",
+    "range": "六项的子集",
+    "risk": "低",
+    "meaning": "交接包带哪几项",
+    "effect_up": "带得全，接手人一眼看清前因后果，不用回头翻记录",
+    "effect_down": "砍掉「AI 试过什么」，接手人会重复问客户同样的问题，客户当场火大"
+  },
+  {
+    "rule_key": "handoff.no_transfer_words",
+    "owner_skill": "handoff_pack",
+    "rule_name": "客户侧禁用词",
+    "rule_type": "清单",
+    "default_value": "转接/换人/售后组/转给/工单/升级处理",
+    "range": "自定义词表",
+    "risk": "中",
+    "meaning": "这些词不得出现在客户侧",
+    "effect_up": "词表越全，\"只有一个身份\"守得越严",
+    "effect_down": "词表漏了词，客户看到\"帮您转售后组\"，一个身份的体验当场破功"
+  }
+]
