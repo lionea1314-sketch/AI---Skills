@@ -40,6 +40,26 @@ _CONFIDENCE = {
 }
 _ID_RETRY = 3
 
+# 渠道别名：同一个渠道在平台侧可能叫 web / 官网 / official，
+# identity_key 是字面拼接，命名不统一就会出现"数据在位却读不到"。
+# 精确匹配永远优先，这张表只在精确未命中时兜底，并且会告警而不是静默修正。
+_CHANNEL_ALIASES = {
+    "官网": ("官网", "web", "website", "official", "pc", "site"),
+    "微信": ("微信", "wechat", "weixin", "wx"),
+    "企微": ("企微", "企业微信", "wecom", "qywx"),
+    "公众号": ("公众号", "mp", "oa", "offiaccount"),
+    "小程序": ("小程序", "miniprogram", "mini", "wxapp", "applet"),
+    "抖音": ("抖音", "douyin", "tiktok", "dy"),
+    "小红书": ("小红书", "xiaohongshu", "xhs", "rednote"),
+    "淘宝": ("淘宝", "taobao", "tb", "tmall", "天猫"),
+    "邮件": ("邮件", "email", "mail"),
+    "电话": ("电话", "phone", "tel", "call"),
+    "API": ("api", "openapi"),
+}
+_ALIAS_TO_CANON = {a.lower(): canon
+                   for canon, aliases in _CHANNEL_ALIASES.items()
+                   for a in aliases}
+
 
 # --------------------------------------------------------------------------- 会话/表定位
 def _get_session(rc: dict):
@@ -122,6 +142,48 @@ async def _find_identity(session, schema: str, identity_key: str) -> dict | None
         return None
     return {"identity_key": row[0], "cust_id": row[1],
             "merge_state": row[2], "confidence": float(row[3] or 0)}
+
+
+def _canon_channel(channel: str) -> str:
+    """把渠道值归一到手册枚举。认不出就原样返回，不猜。"""
+    return _ALIAS_TO_CANON.get(str(channel or "").strip().lower(), str(channel or "").strip())
+
+
+async def _find_identity_relaxed(session, schema: str, channel: str,
+                                 external_id: str) -> dict | None:
+    """
+    精确 identity_key 未命中时的兜底：直接按 channel / external_id 两列比对，
+    忽略大小写与首尾空格，并把渠道别名一并纳入。
+
+    为什么需要它：identity_key 是 f"{channel}:{external_id}" 字面拼接，
+    平台侧渠道叫 web 而库里存"官网"，或 external_id 带了不可见空格，
+    都会让映射明明在位却读不到，表现为"把老客户当新客户重新核身"。
+
+    命中后调用方必须告警——这是数据不一致的信号，不能静默修正了事。
+    """
+    canon = _canon_channel(channel)
+    aliases = {a.lower() for a in _CHANNEL_ALIASES.get(canon, ())}
+    aliases.add(str(channel or "").strip().lower())
+    aliases.add(canon.lower())
+    aliases.discard("")
+    if not aliases:
+        return None
+
+    tbl = _tbl(schema, "crm_identities")
+    cols = ", ".join(_qi(c) for c in
+                     ("identity_key", "cust_id", "merge_state", "confidence", "channel"))
+    binds = ", ".join(f":ch{i}" for i in range(len(aliases)))
+    params = {f"ch{i}": a for i, a in enumerate(sorted(aliases))}
+    params["ext"] = str(external_id or "").strip().lower()
+    sql = (f"SELECT {cols} FROM {tbl} "
+           f"WHERE lower(btrim({_qi('external_id')})) = :ext "
+           f"AND lower(btrim({_qi('channel')})) IN ({binds}) "
+           f"AND {_qi('cust_id')} IS NOT NULL LIMIT 1")
+    row = (await _exec(session, sql, params)).fetchone()
+    if not row:
+        return None
+    return {"identity_key": row[0], "cust_id": row[1], "merge_state": row[2],
+            "confidence": float(row[3] or 0), "stored_channel": row[4]}
 
 
 async def _find_customer_by(session, schema: str, column: str, value: str) -> dict | None:
@@ -241,12 +303,14 @@ async def _snapshot(session, schema: str, cust_id: str) -> dict:
     return row or {"cust_id": cust_id, "_note": "快照时未查到主档"}
 
 
-async def _backfill_conv(session, schema: str, conv_id: str, cust_id: str) -> None:
+async def _backfill_conv(session, schema: str, conv_id: str, cust_id: str) -> int:
+    """返回实际影响行数。0 行意味着 conv_id 对不上——静默当成功会让上层永远发现不了。"""
     tbl = _tbl(schema, "crm_conversations")
     sql = (f"UPDATE {tbl} SET {_qi('cust_id')} = :cust_id, {_qi('updated_at')} = :now "
            f"WHERE {_qi('conv_id')} = :conv_id")
-    await _exec(session, sql, {"cust_id": cust_id, "now": _now(), "conv_id": conv_id})
+    res = await _exec(session, sql, {"cust_id": cust_id, "now": _now(), "conv_id": conv_id})
     await session.commit()
+    return int(res.rowcount or 0)
 
 
 # --------------------------------------------------------------------------- 强证据匹配
@@ -344,22 +408,46 @@ async def execute(input_data: dict, runtime_context: dict) -> dict:
             if t not in tables:
                 skipped.append({"table": t, "reason": "表不存在，跳过"})
 
-        # 1) identity_key 直接命中 —— 99% 的消息走这条
+        # 1) identity_key 精确命中 —— 99% 的消息走这条
+        matched_how = "identity_key"
         ident = await _find_identity(session, schema, identity_key)
+
+        # 1.5) 精确未命中时按 channel/external_id 两列宽松再找一次。
+        #      映射明明在位却读不到（渠道叫 web 而库里存"官网"、external_id 带空格），
+        #      表现就是把老客户当新客户重新核身。兜底救当次对话，但必须告警。
+        if not (ident and ident.get("cust_id")):
+            relaxed = await _find_identity_relaxed(session, schema, channel, external_id)
+            if relaxed:
+                ident = relaxed
+                matched_how = "identity_key_relaxed"
+                notes.append(
+                    f"identity_key 字面未命中但按 channel/external_id 找到了："
+                    f"传入 {identity_key!r} vs 库里 {relaxed['identity_key']!r}"
+                    f"（库中 channel={relaxed.get('stored_channel')!r}）。"
+                    f"这是数据不一致，请统一渠道命名后重测，不要依赖本兜底。")
+
         if ident and ident.get("cust_id"):
+            backfilled, backfill_error = None, None
             if conv_id and "crm_conversations" in tables:
                 try:
-                    await _backfill_conv(session, schema, conv_id, ident["cust_id"])
-                except Exception as e:               # noqa: BLE001 回填是附属动作
+                    rows = await _backfill_conv(session, schema, conv_id, ident["cust_id"])
+                    backfilled = rows
+                    if rows == 0:
+                        backfill_error = f"conv_id {conv_id} 未匹配到任何会话行"
+                        notes.append(f"回填影响 0 行：{backfill_error}")
+                except Exception as e:               # noqa: BLE001 回填失败不该吞
                     logger.exception("回填会话 cust_id 失败: %r", e)
+                    backfill_error = str(e)
                     notes.append(f"会话回填失败: {e}")
                     await session.rollback()
             return {"cust_id": ident["cust_id"], "lead_id": None,
-                    "matched_by": "identity_key",
+                    "matched_by": matched_how,
                     "confidence": _CONFIDENCE["identity_key"],
                     "merge_state": ident.get("merge_state") or "已确认",
                     "is_new": False, "merge_evidence_key": None,
-                    "candidates": [], "skipped": skipped, "notes": notes}
+                    "candidates": [], "conv_backfilled": backfilled,
+                    "backfill_error": backfill_error,
+                    "skipped": skipped, "notes": notes}
 
         # 2) 强证据逐条试
         matched_by, cust = await _try_strong(session, schema, inp, rules, notes)
@@ -386,11 +474,17 @@ async def execute(input_data: dict, runtime_context: dict) -> dict:
                 "merge_evidence": json.dumps(evidence, ensure_ascii=False),
                 "confidence": _CONFIDENCE.get(matched_by, 0.9), "created_at": now,
             })
+            backfilled, backfill_error = None, None
             if conv_id and "crm_conversations" in tables:
                 try:
-                    await _backfill_conv(session, schema, conv_id, cust["cust_id"])
+                    backfilled = await _backfill_conv(
+                        session, schema, conv_id, cust["cust_id"])
+                    if backfilled == 0:
+                        backfill_error = f"conv_id {conv_id} 未匹配到任何会话行"
+                        notes.append(f"回填影响 0 行：{backfill_error}")
                 except Exception as e:               # noqa: BLE001
                     logger.exception("回填会话 cust_id 失败: %r", e)
+                    backfill_error = str(e)
                     notes.append(f"会话回填失败: {e}")
                     await session.rollback()
             return {"cust_id": cust["cust_id"], "lead_id": None,
@@ -398,6 +492,7 @@ async def execute(input_data: dict, runtime_context: dict) -> dict:
                     "confidence": _CONFIDENCE.get(matched_by, 0.9),
                     "merge_state": "已确认", "is_new": False,
                     "merge_evidence_key": evidence_key, "candidates": [],
+                    "conv_backfilled": backfilled, "backfill_error": backfill_error,
                     "skipped": skipped, "notes": notes}
 
         # 4) 只有弱证据 → 建待确认 identity，绝不挂到已有 cust_id 上
@@ -474,17 +569,23 @@ async def execute(input_data: dict, runtime_context: dict) -> dict:
                 ensure_ascii=False),
             "confidence": _CONFIDENCE["new"], "created_at": now,
         })
+        backfilled, backfill_error = None, None
         if conv_id and "crm_conversations" in tables:
             try:
-                await _backfill_conv(session, schema, conv_id, cust_id)
+                backfilled = await _backfill_conv(session, schema, conv_id, cust_id)
+                if backfilled == 0:
+                    backfill_error = f"conv_id {conv_id} 未匹配到任何会话行"
+                    notes.append(f"回填影响 0 行：{backfill_error}")
             except Exception as e:                   # noqa: BLE001
                 logger.exception("回填会话 cust_id 失败: %r", e)
+                backfill_error = str(e)
                 notes.append(f"会话回填失败: {e}")
                 await session.rollback()
 
         return {"cust_id": cust_id, "lead_id": None, "matched_by": "new",
                 "confidence": _CONFIDENCE["new"], "merge_state": "已确认",
                 "is_new": True, "merge_evidence_key": None, "candidates": [],
+                "conv_backfilled": backfilled, "backfill_error": backfill_error,
                 "skipped": skipped, "notes": notes}
 
     except Exception as e:                           # noqa: BLE001 入口兜底

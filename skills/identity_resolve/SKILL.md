@@ -49,12 +49,14 @@ domain: crm
 |---|---|---|
 | `cust_id` | string\|null | 命中或新建的客户编号 |
 | `lead_id` | string\|null | `identity.new_as_lead` 开启时新建的线索编号 |
-| `matched_by` | string | `identity_key` / `phone` / `unionid` / `self_claim` / `email` / `addr_name` / `weak` / `new` |
+| `matched_by` | string | `identity_key` / `identity_key_relaxed` / `phone` / `unionid` / `self_claim` / `email` / `addr_name` / `weak` / `new` |
 | `confidence` | float | 0~1 |
 | `merge_state` | string | 已确认 / 待确认 / 已否决 |
 | `is_new` | bool | 是否新建了客户或线索 |
 | `merge_evidence_key` | string\|null | 合并快照标识，撤销靠它 |
 | `candidates` | array | 弱证据命中的候选，人工确认用（可核验） |
+| `conv_backfilled` | int\|null | 回填 `crm_conversations.cust_id` 的影响行数。**0 表示 conv_id 对不上**，不是成功 |
+| `backfill_error` | string\|null | 回填失败原因。非空时上层不能假定会话表已带 cust_id |
 | `skipped` / `notes` | array | 跳过项与错误，原样透出 |
 
 失败返回 `{"error": "..."}`，不抛异常。
@@ -85,7 +87,13 @@ domain: crm
 见同目录 `handler.py`。
 
 **匹配优先级**（顺序固定，不可配，因为它直接决定错并风险）：
-`identity_key`（99% 走这条）→ `phone` → `unionid` → `self_claim` → `email`(默认关) → `addr_name`(默认关) → 弱证据(只标待确认) → 新建。
+`identity_key`（99% 走这条）→ **`identity_key` 宽松兜底** → `phone` → `unionid` → `self_claim` → `email`(默认关) → `addr_name`(默认关) → 弱证据(只标待确认) → 新建。
+
+**宽松兜底**：精确 `identity_key` 未命中时，按 `channel` / `external_id` 两列忽略大小写与首尾空格再找一次，并纳入渠道别名（`web`/`官网`/`official` 视为同一渠道）。
+
+它解决的是这类故障：映射明明在 `crm_identities` 里，却因为平台侧渠道叫 `web` 而库里存"官网"读不到，表现为**把老客户当新客户重新核身**——这正是 A 组测试的红线。
+
+兜底命中时 `matched_by` 返回 `identity_key_relaxed` 并在 `notes` 里写明字面差异。**它救当次对话，但不掩盖问题**：看到这个值就说明渠道命名需要统一，不应长期依赖兜底。
 
 命中即返回，不继续往下试，避免一条弱证据覆盖强证据的结论。
 
