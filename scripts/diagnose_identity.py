@@ -6,6 +6,9 @@
 它不是技能，智能体不会调用它。这是排查工具，你（或运维）在命令行里跑，
 它自己连库、自己跑五层检查、直接告诉你断在哪一层、该怎么修。
 
+连不上数据库、或者不想碰命令行：改用 scripts/diagnose_identity_prompts.md，
+那是同一套排查的自然语言指令版，直接在平台对话框里发给系统就行。
+
 用法：
     python3 scripts/diagnose_identity.py \\
         --dsn "postgresql+asyncpg://user:pass@host:5432/dbname" \\
